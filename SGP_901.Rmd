@@ -1,0 +1,16 @@
+---
+title: "Manchester_Multitype"
+output: 
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+run_heavy <- FALSE
+```
+
+```{r Library, warning=FALSE}
+library(spatstat.geom)
+library(spatstat.random)
+```
