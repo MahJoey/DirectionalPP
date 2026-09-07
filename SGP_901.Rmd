@@ -1,16 +1,82 @@
 ---
-title: "Manchester_Multitype"
+title: "Directional Simulation"
 output: 
   pdf_document:
     latex_engine: xelatex
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-run_heavy <- FALSE
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.width = 6, fig.height = 6
+                      )
 ```
 
 ```{r Library, warning=FALSE}
 library(spatstat.geom)
 library(spatstat.random)
+```
+
+```{r Defaultsetting}
+W <- owin(xrange = c(0, 10), yrange = c(0, 10))
+
+sigma_parallel <- 0.60
+sigma_perp <- 0.12
+theta0 <- pi / 4
+```
+
+```{r}
+n <- 100
+u <- rnorm(n, mean = 0, sd = sigma_parallel)
+v <- rnorm(n, mean = 0, sd = sigma_perp)
+
+plot(u, v, asp = 1, pch = 16,
+     xlab = "u", ylab = "v", main = "Before rotation")
+
+dx <- u * cos(theta0) - v * sin(theta0)
+dy <- u * sin(theta0) + v * cos(theta0)
+xy <- data.frame(x = 5 + dx, y = 5 + dy)
+
+plot(W, main = "One ellipse cluster", axes = TRUE)
+points(xy$x, xy$y, pch = 16, cex = 0.6)
+points(5, 5, pch = 3, col = "red", cex = 1.3)
+```
+
+```{r Parentpoints}
+lambda_centers <- 0.2
+X_parent <- rpoispp(lambda_centers, win = W)
+xy_parent <- data.frame(x = X_parent$x, y = X_parent$y)
+n_parent <- npoints(X_parent)
+
+n_parent
+plot(X_parent, main = "Cluster centres", axes = TRUE,
+     pch = 3, cols = "red")
+```
+
+```{r Offspringpoints}
+lambda_offspring <- 40
+n_offspring <- rpois(n_parent, lambda = lambda_offspring)
+
+n_offspring
+
+xy <- data.frame(x = numeric(), y = numeric()) #
+for (i in seq_len(n_parent)) {
+  u <- rnorm(n_offspring[i], sd = sigma_parallel)
+  v <- rnorm(n_offspring[i], sd = sigma_perp)
+  
+  xy_i <- data.frame(
+    x = xy_parent$x[i] + u * cos(theta0) - v * sin(theta0),
+    y = xy_parent$y[i] + u * sin(theta0) + v * cos(theta0)
+  )
+  xy <- rbind(xy, xy_i)
+}
+
+keep <- inside.owin(xy$x, xy$y, W) #only keep points in the window 
+X <- ppp(x = xy$x[keep], y = xy$y[keep], window = W)
+
+sum(n_offspring)
+npoints(X)
+
+plot(X, main = "Ellipse clusters", axes = TRUE, pch = 16, cex = 0.6)
+plot(X, main = "Points and centres", axes = TRUE, pch = 16, cex = 0.6)
+plot(X_parent, add = TRUE, pch = 3, cols = "red", cex = 1.2)
 ```
