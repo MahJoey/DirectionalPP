@@ -110,7 +110,6 @@ rho_gp <- 3
 D_gp <- as.matrix(dist(xy_parent))
 Sigma_gp <- sigma_gp^2 * exp(-D_gp^2 / (2 * rho_gp^2)) #Covaariance
 
-Sigma_gp <- sigma_gp^2 * exp(-D_gp^2 / (2 * rho_gp^2))
 R_gp <- chol(Sigma_gp)
 
 z_gp <- rnorm(n_parent)
@@ -159,10 +158,112 @@ keep <- inside.owin(xy$x, xy$y, W)
 X <- ppp(x = xy$x[keep], y = xy$y[keep], window = W)
 sum(n_offspring)
 npoints(X)
-plot(X, main = "GP-directed Inside", axes = TRUE, pch = 16, cex = 0.6)
+#plot(X, main = "GP-directed Inside", axes = TRUE, pch = 16, cex = 0.6)
+plot(X, axes = TRUE, pch = 16, cex = 0.6)
 ```
 
 ```{r}
 plot(X, main = "GP-directed Inside", axes = TRUE, pch = 16, cex = 0.6)
 plot(X_parent[W], add = TRUE, pch = 3, cols = "red", cex = 0.8)
+```
+
+```{r rotateGP}
+rotate_gp <- function(theta_new) {
+  id_parent <- rep(seq_len(n_parent), times = n_offspring)
+  dx <- xy$x - xy_parent$x[id_parent]
+  dy <- xy$y - xy_parent$y[id_parent]
+  dtheta <- theta_new[id_parent] - theta_gp[id_parent]
+
+  xy_new <- data.frame(
+    x = xy_parent$x[id_parent] + dx * cos(dtheta) - dy * sin(dtheta),
+    y = xy_parent$y[id_parent] + dx * sin(dtheta) + dy * cos(dtheta)
+  )
+
+  keep <- inside.owin(xy_new$x, xy_new$y, W)
+  ppp(x = xy_new$x[keep], y = xy_new$y[keep], window = W)
+}
+```
+
+```{r compareGP, fig.width=12, fig.height=6}
+theta_logistic <- pi * plogis(qlogis(theta0 / pi) + Z_gp)
+X_logistic <- rotate_gp(theta_logistic)
+
+par(mfrow = c(1, 2))
+plot(X, main = "mod pi", axes = TRUE, pch = 16, cex = 0.6)
+plot(X_logistic, main = "Logistic", axes = TRUE, pch = 16, cex = 0.6)
+par(mfrow = c(1, 1))
+```
+
+```{r , fig.width=12, fig.height=6}
+z <- seq(-40, 40, length.out = 1000) 
+matplot(z, cbind((theta0 + z) %% pi, pi * plogis(qlogis(theta0 / pi) + z)) * 180 / pi, pch = 16, cex = 0.3, col = c("blue", "red"), xlab = "Z(s)", ylab = "Angle (degrees)")
+
+```
+
+```{r AngleDensity, fig.width=12, fig.height=6}
+theta0 <- 0
+
+# Density of GP_angle
+theta_mod <- (theta0 + Z_gp) %% pi
+theta_logistic <- (theta0 + pi * (plogis(Z_gp) - 0.5)) %% pi
+
+
+angle_density <- function(theta) {
+  angle <- theta * 180 / pi
+  d <- density(c(angle - 180, angle, angle + 180),
+               bw = 10, from = 0, to = 180)
+  d$y <- 3 * d$y
+  return(d)
+}
+
+density_mod <- angle_density(theta_mod)
+density_logistic <- angle_density(theta_logistic)
+
+
+ylim_density <- c(0, max(density_mod$y, density_logistic$y))
+
+par(mfrow = c(1, 1))
+plot(density_mod, col = "blue", lwd = 2,
+     xlim = c(0, 180), ylim = ylim_density,
+     main = "Angle distributions: theta0 = 0",
+     xlab = "Angle (degrees)", ylab = "Density")
+
+lines(density_logistic, col = "red", lwd = 2)
+
+legend("topright",
+       legend = c("mod pi", "logistic"),
+       col = c("blue", "red"),
+       lwd = 2, bty = "n")
+```
+
+```{r GaussianVectorField, fig.width=6, fig.height=6}
+# observepoint
+n_field <- 500
+xy_field <- data.frame(
+  x = runif(n_field, W$xrange[1], W$xrange[2]),
+  y = runif(n_field, W$yrange[1], W$yrange[2])
+)
+
+# 
+D_field <- as.matrix(dist(xy_field))
+Sigma_field <- sigma_gp^2 * exp(-D_field^2 / (2 * rho_gp^2))
+Sigma_field <- Sigma_field + diag(1e-8, n_field)
+R_field <- chol(Sigma_field)
+
+# 
+GP1 <- as.vector(t(R_field) %*% rnorm(n_field))
+GP2 <- as.vector(t(R_field) %*% rnorm(n_field))
+
+# (GP1,GP2)^T
+vector_field <- data.frame(xy_field, GP1 = GP1, GP2 = GP2)
+
+# plot
+plot(W, main = "Gaussian vector field", axes = TRUE)
+points(xy_field$x, xy_field$y, pch = 16, cex = 0.5)
+
+arrow_scale <- 1
+arrows(xy_field$x, xy_field$y,
+       xy_field$x + arrow_scale * GP1,
+       xy_field$y + arrow_scale * GP2,
+       length = 0.06, col = "lightblue")
 ```
